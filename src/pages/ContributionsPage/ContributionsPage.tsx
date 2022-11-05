@@ -1,10 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
+import { zodResolver } from '@hookform/resolvers/zod';
 import dedent from 'dedent';
+import { updateCircle } from 'lib/gql/mutations';
 import { debounce } from 'lodash';
 import { DateTime } from 'luxon';
-import { useForm, useController } from 'react-hook-form';
+import { useForm, SubmitHandler, useController } from 'react-hook-form';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
+import * as z from 'zod';
 
 import useConnectedAddress from '../../hooks/useConnectedAddress';
 import { useSelectedCircle } from '../../recoilState';
@@ -20,7 +23,7 @@ import {
   ChevronUp,
 } from 'icons/__generated';
 import { QUERY_KEY_ALLOCATE_CONTRIBUTIONS } from 'pages/GivePage/EpochStatementDrawer';
-import { Panel, Text, Box, Modal, Button, Flex } from 'ui';
+import { Panel, Text, Box, Modal, Button, Flex, Form } from 'ui';
 import { SingleColumnLayout } from 'ui/layouts';
 import { SavingIndicator, SaveState } from 'ui/SavingIndicator';
 
@@ -44,6 +47,17 @@ import {
   jumpToEpoch,
   isEpochCurrentOrLater,
 } from './util';
+
+const schema = z.object({
+  team_sel_text: z
+
+    .string()
+    .max(500)
+    .refine(val => val.trim().length >= 40, {
+      message: 'At least 40 characters must be writen',
+    }),
+});
+type contributionTextSchema = z.infer<typeof schema>;
 
 const DEBOUNCE_TIMEOUT = 1000;
 
@@ -98,6 +112,7 @@ const ContributionsPage = () => {
   const address = useConnectedAddress();
   const { circle: selectedCircle } = useSelectedCircle();
   const [modalOpen, setModalOpen] = useState(false);
+  const [editHelpText, setEditHelpText] = useState(true);
   const [saveState, setSaveState] = useState<{ [key: number]: SaveState }>({});
   const [currentContribution, setCurrentContribution] =
     useState<CurrentContribution | null>(null);
@@ -133,6 +148,25 @@ const ContributionsPage = () => {
   );
 
   const { control, reset, resetField, setValue } = useForm({ mode: 'all' });
+  const { control: contributionTextControl, handleSubmit } =
+    useForm<contributionTextSchema>({
+      resolver: zodResolver(schema),
+      mode: 'all',
+    });
+
+  const onSubmit: SubmitHandler<contributionTextSchema> = async data => {
+    try {
+      await updateCircle({
+        circle_id: selectedCircle.id,
+        team_sel_text: data.team_sel_text,
+      });
+
+      refetchContributions();
+    } catch (e) {
+      console.warn(e);
+    }
+    setEditHelpText(true);
+  };
 
   useEffect(() => {
     // once we become buffering, we need to schedule
@@ -336,8 +370,19 @@ const ContributionsPage = () => {
   if (!memoizedEpochData) {
     return <LoadingModal visible />;
   }
-
   const currentUserId: number = memoizedEpochData.users[0]?.id;
+  const addContributionClickHandler = () => {
+    setCurrentContribution({
+      contribution: getNewContribution(
+        currentUserId,
+        memoizedEpochData.contributions[0]
+      ),
+      epoch: getCurrentEpoch(memoizedEpochData.epochs),
+    });
+    resetField('description', { defaultValue: '' });
+    resetCreateMutation();
+    setModalOpen(true);
+  };
 
   return (
     <>
@@ -351,32 +396,63 @@ const ContributionsPage = () => {
           }}
         >
           <Text h1>Contributions</Text>
-          <Button
-            outlined
-            color="primary"
-            onClick={() => {
-              setCurrentContribution({
-                contribution: getNewContribution(
-                  currentUserId,
-                  memoizedEpochData.contributions[0]
-                ),
-                epoch: getCurrentEpoch(memoizedEpochData.epochs),
-              });
-              resetField('description', { defaultValue: '' });
-              resetCreateMutation();
-              setModalOpen(true);
-            }}
-          >
-            Add Contribution
-          </Button>
+          {editHelpText ? (
+            <Button
+              outlined
+              color="primary"
+              type="submit"
+              onClick={() => {
+                setEditHelpText(false);
+              }}
+            >
+              Edit Help Text
+            </Button>
+          ) : (
+            <Button
+              outlined
+              color="primary"
+              type="submit"
+              onClick={handleSubmit(onSubmit)}
+            >
+              Save
+            </Button>
+          )}
         </Flex>
-        <Text p>What have you been working on?</Text>
+        <Form
+          css={{
+            justifyContent: 'space-between',
+            alignItems: 'flex-end',
+            flexWrap: 'wrap',
+            gap: '$md',
+          }}
+        >
+          {editHelpText ? (
+            <p>
+              {data?.circles_by_pk?.team_sel_text ??
+                'What have you been working on ?'}
+            </p>
+          ) : (
+            <FormInputField
+              name="team_sel_text"
+              id="finish_work"
+              control={contributionTextControl}
+              defaultValue={data?.circles_by_pk?.team_sel_text}
+              label="Contribution Help Text"
+              infoTooltip="Write what you been working on "
+              showFieldErrors
+              css={{
+                width: '700px',
+              }}
+            />
+          )}
+        </Form>
         <EpochGroup
           contributions={memoizedEpochData.contributions || []}
           epochs={memoizedEpochData.epochs || []}
           currentContribution={currentContribution}
           setActiveContribution={activeContributionFn}
           userAddress={address}
+          addContributionClickHandler={addContributionClickHandler}
         />
       </SingleColumnLayout>
       <Modal
@@ -639,17 +715,32 @@ const EpochGroup = React.memo(function EpochGroup({
   currentContribution,
   setActiveContribution,
   userAddress,
+  addContributionClickHandler,
 }: Omit<LinkedContributionsAndEpochs, 'users'> &
-  SetActiveContributionProps & { userAddress?: string }) {
+  SetActiveContributionProps & {
+    userAddress?: string;
+    addContributionClickHandler: () => void;
+  }) {
   return (
     <Flex column css={{ gap: '$1xl' }}>
       {epochs.map((epoch, idx, epochArray) => (
         <Box key={epoch.id}>
           <Box>
-            <Text h2 bold css={{ gap: '$md' }}>
-              {epoch.id === 0 ? 'Latest' : renderEpochDate(epoch)}
-              {getEpochLabel(epoch)}
-            </Text>
+            <Flex css={{ justifyContent: 'space-between' }}>
+              <Text h2 bold css={{ gap: '$md' }}>
+                {epoch.id === 0 ? 'Latest' : renderEpochDate(epoch)}
+                {getEpochLabel(epoch)}
+              </Text>
+              {idx === 0 && (
+                <Button
+                  outlined
+                  color="primary"
+                  onClick={addContributionClickHandler}
+                >
+                  Add Contribution
+                </Button>
+              )}
+            </Flex>
           </Box>
           <Panel css={{ gap: '$md', borderRadius: '$4', mt: '$lg' }}>
             <ContributionList
