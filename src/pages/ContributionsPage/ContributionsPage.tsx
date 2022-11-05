@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import dedent from 'dedent';
 import { updateCircle } from 'lib/gql/mutations';
+import { isUserAdmin } from 'lib/users';
 import { debounce } from 'lodash';
 import { DateTime } from 'luxon';
 import { useForm, SubmitHandler, useController } from 'react-hook-form';
@@ -110,7 +111,7 @@ const contributionSource = (source: string) => {
 };
 const ContributionsPage = () => {
   const address = useConnectedAddress();
-  const { circle: selectedCircle } = useSelectedCircle();
+  const { circle: selectedCircle, myUser: me } = useSelectedCircle();
   const [modalOpen, setModalOpen] = useState(false);
   const [editHelpText, setEditHelpText] = useState(true);
   const [saveState, setSaveState] = useState<{ [key: number]: SaveState }>({});
@@ -153,7 +154,7 @@ const ContributionsPage = () => {
       resolver: zodResolver(schema),
       mode: 'all',
     });
-
+  const isAdmin = isUserAdmin(me);
   const onSubmit: SubmitHandler<contributionTextSchema> = async data => {
     try {
       await updateCircle({
@@ -397,16 +398,20 @@ const ContributionsPage = () => {
         >
           <Text h1>Contributions</Text>
           {editHelpText ? (
-            <Button
-              outlined
-              color="primary"
-              type="submit"
-              onClick={() => {
-                setEditHelpText(false);
-              }}
-            >
-              Edit Help Text
-            </Button>
+            <>
+              {isAdmin && (
+                <Button
+                  outlined
+                  color="primary"
+                  type="submit"
+                  onClick={() => {
+                    setEditHelpText(false);
+                  }}
+                >
+                  Edit Help Text
+                </Button>
+              )}
+            </>
           ) : (
             <Button
               outlined
