@@ -424,19 +424,12 @@ const ContributionsPage = () => {
             </Button>
           )}
         </Flex>
-        <Box
-          css={{
-            justifyContent: 'space-between',
-            alignItems: 'flex-end',
-            flexWrap: 'wrap',
-            gap: '$md',
-          }}
-        >
+        <Box>
           {!editHelpText ? (
-            <p>
+            <Text p>
               {data?.circles_by_pk?.team_sel_text ??
                 'What have you been working on?'}
-            </p>
+            </Text>
           ) : (
             <FormInputField
               name="team_sel_text"
@@ -732,7 +725,13 @@ const EpochGroup = React.memo(function EpochGroup({
       {epochs.map((epoch, idx, epochArray) => (
         <Box key={epoch.id}>
           <Box>
-            <Flex css={{ justifyContent: 'space-between' }}>
+            <Flex
+              css={{
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '$md',
+              }}
+            >
               <Text h2 bold css={{ gap: '$md' }}>
                 {epoch.id === 0 ? 'Latest' : renderEpochDate(epoch)}
                 {getEpochLabel(epoch)}
