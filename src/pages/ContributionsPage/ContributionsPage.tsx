@@ -115,6 +115,7 @@ const ContributionsPage = () => {
   const { circle: selectedCircle, myUser: me } = useSelectedCircle();
   const [modalOpen, setModalOpen] = useState(false);
   const [editHelpText, setEditHelpText] = useState(false);
+
   const [saveState, setSaveState] = useState<{ [key: number]: SaveState }>({});
   const [currentContribution, setCurrentContribution] =
     useState<CurrentContribution | null>(null);
@@ -149,6 +150,9 @@ const ContributionsPage = () => {
       },
     }
   );
+  const [updatedTeamSelText, setUpdatedTeamSelText] = useState<
+    string | undefined
+  >(data?.circles_by_pk?.team_sel_text);
 
   const { control, reset, resetField, setValue } = useForm({ mode: 'all' });
   const { control: contributionTextControl, handleSubmit } =
@@ -163,8 +167,7 @@ const ContributionsPage = () => {
         circle_id: selectedCircle.id,
         team_sel_text: data.team_sel_text,
       });
-
-      refetchContributions();
+      setUpdatedTeamSelText(data.team_sel_text);
     } catch (e) {
       showError(e);
       console.warn(e);
@@ -427,8 +430,7 @@ const ContributionsPage = () => {
         <Box>
           {!editHelpText ? (
             <Text p>
-              {data?.circles_by_pk?.team_sel_text ??
-                'What have you been working on?'}
+              {updatedTeamSelText || 'What have you been working on?'}
             </Text>
           ) : (
             <FormInputField
