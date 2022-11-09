@@ -152,7 +152,7 @@ const ContributionsPage = () => {
   );
   const [updatedTeamSelText, setUpdatedTeamSelText] = useState<
     string | undefined
-  >(data?.circles_by_pk?.team_sel_text);
+  >();
 
   const { control, reset, resetField, setValue } = useForm({ mode: 'all' });
   const { control: contributionTextControl, handleSubmit } =
@@ -430,7 +430,9 @@ const ContributionsPage = () => {
         <Box>
           {!editHelpText ? (
             <Text p>
-              {updatedTeamSelText || 'What have you been working on?'}
+              {updatedTeamSelText ||
+                data?.circles_by_pk?.team_sel_text ||
+                'What have you been working on?'}
             </Text>
           ) : (
             <FormInputField
